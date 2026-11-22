@@ -255,6 +255,75 @@ def list_exports() -> list[dict[str, Any]]:
     return records
 
 
+# ========== 正式归并交付文件 ==========
+
+
+def write_delivery_file(delivery_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """把一次交付的数据写成交付专属文件。
+
+    交付文件按交付编号单独存放，不覆盖导出任务目录里的历史文件，
+    这样撤回后旧交付的列、行数和来源关系仍然可以逐份对账。
+    """
+    base = DATA_ROOT / "exports" / "deliveries"
+    _ensure_dir(base)
+
+    record = dict(payload)
+    record["_created_at"] = record.get("_created_at", _now_iso())
+    record["_updated_at"] = _now_iso()
+    json_path = base / f"{delivery_id}.json"
+    _write_json(json_path, record)
+
+    columns = [str(col) for col in record.get("columns", [])]
+    rows = record.get("rows", [])
+    csv_path = base / f"{delivery_id}.csv"
+    lines = [",".join(columns)]
+    for row in rows:
+        lines.append(",".join(str(value) for value in row))
+    csv_path.write_text("\n".join(lines), encoding="utf-8")
+
+    return {
+        "json": f"exports/deliveries/{delivery_id}.json",
+        "csv": f"exports/deliveries/{delivery_id}.csv",
+        "size": csv_path.stat().st_size,
+        "created_at": record["_created_at"],
+    }
+
+
+def read_delivery_file(delivery_id: str) -> dict[str, Any]:
+    return _read_json(DATA_ROOT / "exports" / "deliveries" / f"{delivery_id}.json", {})
+
+
+# ========== 归并交付台账 ==========
+
+
+def write_merge_ledger(payload: dict[str, Any]) -> None:
+    """持久化归并批次、撤回回执与交付登记，供重启后继续对账。"""
+    _write_json(DATA_ROOT / "merge_ledger" / "ledger.json", payload)
+
+
+def read_merge_ledger() -> dict[str, Any]:
+    return _read_json(DATA_ROOT / "merge_ledger" / "ledger.json", {})
+
+
+def write_receipt(receipt_no: str, receipt: dict[str, Any]) -> None:
+    """撤回回执按回执编号单独落盘，下游导出任务可逐号读取。"""
+    _write_json(DATA_ROOT / "receipts" / f"{receipt_no}.json", receipt)
+
+
+def read_receipt(receipt_no: str) -> dict[str, Any]:
+    return _read_json(DATA_ROOT / "receipts" / f"{receipt_no}.json", {})
+
+
+def list_receipts() -> list[dict[str, Any]]:
+    _ensure_dir(DATA_ROOT / "receipts")
+    records = []
+    for f in sorted(DATA_ROOT.glob("receipts/*.json")):
+        receipt = _read_json(f)
+        if receipt:
+            records.append(receipt)
+    return records
+
+
 # ========== 模块数据快照 ==========
 
 

@@ -59,6 +59,12 @@ class BaseModuleService:
         rows.append(entry)
         return entry, []
 
+    def run_action_with_remark(
+        self, entry_id: int, action: str, remark: str | None = None,
+    ) -> tuple[dict[str, Any] | None, str]:
+        """带备注的动作入口：默认忽略备注，需要记录原因的服务自行覆盖。"""
+        return self.run_action(entry_id, action)
+
     def run_action(self, entry_id: int, action: str) -> tuple[dict[str, Any] | None, str]:
         entry = store.find(self.MODULE, entry_id)
         if entry is None:
